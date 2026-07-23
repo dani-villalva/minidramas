@@ -1,10 +1,12 @@
-// CONFIGURACIÓN API
-const API_BASE = "https://api.quickplay.my.id";
-const API_SECRET = "2c6afa9a953a3ff9fc4343a17d8e72779ad525188fc6c59e89c330f990bf3224";
+// --- 1. OFUSCACIÓN DE API ---
+// Estas cadenas codificadas ocultan la URL y la llave. No es infalible, pero detiene scrapers básicos.
+const _0xUrl = atob("aHR0cHM6Ly9hcGkucXVpY2twbGF5Lm15Lmlk");
+const _0xKey = ["2c6afa9a9", "53a3ff9fc", "4343a17d8", "e72779ad5", "25188fc6c", "59e89c330", "f990bf3224"].join("");
 
 let hlsInstance = null;
 let currentDramaData = null; 
 let currentChapterIndex = -1; 
+let sliderInterval = null;
 
 // PLATAFORMAS 
 const platforms = [
@@ -25,10 +27,101 @@ let currentCategory = platforms[0].id;
 function getHeaders(path) {
     const timestamp = Date.now().toString();
     const payload = `GET:${path}:${timestamp}`;
-    const signature = CryptoJS.HmacSHA256(payload, API_SECRET).toString();
+    const signature = CryptoJS.HmacSHA256(payload, _0xKey).toString();
     return { "X-Timestamp": timestamp, "X-Signature": signature };
 }
 
+// --- LOCAL STORAGE LOGIC ---
+function getSavedData(key) {
+    return JSON.parse(localStorage.getItem(key)) || [];
+}
+function setSavedData(key, data) {
+    localStorage.setItem(key, JSON.stringify(data));
+}
+
+// Toggle Favoritos
+function toggleFavorite(id, title, cover) {
+    let favs = getSavedData('drama_favs');
+    const index = favs.findIndex(f => f.id === id);
+    if (index > -1) {
+        favs.splice(index, 1);
+        showToast("Eliminado de Mi Lista");
+    } else {
+        favs.unshift({ id, title, cover });
+        showToast("Añadido a Mi Lista");
+    }
+    setSavedData('drama_favs', favs);
+    renderFavorites();
+    
+    // Actualizar botón si estamos en detalles
+    const btn = document.getElementById('fav-btn-icon');
+    if(btn) {
+        btn.innerHTML = index > -1 ? `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"></path>` 
+                                  : `<path fill="currentColor" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"></path>`;
+    }
+}
+
+// Guardar progreso Continuar Viendo
+function saveContinueWatching(id, title, cover, chapterId) {
+    let cw = getSavedData('drama_cw');
+    const index = cw.findIndex(c => c.id === id);
+    if (index > -1) cw.splice(index, 1);
+    cw.unshift({ id, title, cover, chapterId, category: currentCategory });
+    if(cw.length > 10) cw.pop(); // Mantener solo los últimos 10
+    setSavedData('drama_cw', cw);
+    renderContinueWatching();
+}
+
+function renderContinueWatching() {
+    const cw = getSavedData('drama_cw');
+    const sec = document.getElementById('continue-watching-section');
+    const list = document.getElementById('continue-watching-list');
+    
+    if (cw.length === 0) {
+        sec.classList.add('hidden');
+        return;
+    }
+    
+    sec.classList.remove('hidden');
+    list.innerHTML = cw.map(d => `
+        <div class="flex-shrink-0 w-32 md:w-40 cursor-pointer group" onclick="selectPlatform('${d.category}'); loadDetail('${d.id}')">
+            <div class="relative overflow-hidden rounded-xl bg-[#171a21] aspect-[3/4] border border-white/5 group-hover:border-[#00d639]/50 transition-all">
+                <img src="${d.cover}" class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500">
+                <div class="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div class="w-10 h-10 bg-[#00d639] rounded-full flex items-center justify-center pl-1"><svg class="w-5 h-5 text-black" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"></path></svg></div>
+                </div>
+                <div class="absolute bottom-0 left-0 w-full bg-gradient-to-t from-black to-transparent p-2">
+                    <span class="text-[10px] font-bold text-[#00d639] bg-black/50 px-1.5 py-0.5 rounded">Eps ${d.chapterId}</span>
+                </div>
+            </div>
+            <h3 class="mt-2 text-xs font-semibold line-clamp-1 text-gray-300 group-hover:text-white">${d.title}</h3>
+        </div>
+    `).join('');
+}
+
+function renderFavorites() {
+    const favs = getSavedData('drama_favs');
+    const sec = document.getElementById('favorites-section');
+    const list = document.getElementById('favorites-list');
+    
+    if (favs.length === 0) {
+        sec.classList.add('hidden');
+        return;
+    }
+    
+    sec.classList.remove('hidden');
+    list.innerHTML = favs.map(d => `
+        <div class="flex-shrink-0 w-28 md:w-36 cursor-pointer group" onclick="loadDetail('${d.id}')">
+            <div class="relative overflow-hidden rounded-xl bg-[#171a21] aspect-[3/4] border border-white/5 group-hover:border-white/30 transition-all">
+                <img src="${d.cover}" class="w-full h-full object-cover">
+            </div>
+            <h3 class="mt-2 text-xs font-medium line-clamp-1 text-gray-400 group-hover:text-white">${d.title}</h3>
+        </div>
+    `).join('');
+}
+
+
+// --- RENDERIZADO PRINCIPAL ---
 function renderPlatforms() {
     const container = document.getElementById('platform-list');
     container.innerHTML = platforms.map(p => {
@@ -60,13 +153,82 @@ function selectPlatform(id) {
     loadHome();
 }
 
+// SLIDER HERO
+function renderHeroSlider(dramas) {
+    const container = document.getElementById('hero-slider-container');
+    const slider = document.getElementById('hero-slider');
+    const dotsContainer = document.getElementById('slider-dots');
+    
+    if(!dramas || dramas.length === 0) {
+        container.classList.add('hidden');
+        return;
+    }
+    
+    container.classList.remove('hidden');
+    const topDramas = dramas.slice(0, 5); // 5 primeros para el slider
+    
+    // Crear Slides
+    slider.innerHTML = topDramas.map((d, i) => `
+        <div class="absolute inset-0 transition-opacity duration-1000 ${i === 0 ? 'opacity-100 z-10' : 'opacity-0 z-0'}" id="slide-${i}">
+            <img src="${d.cover}" class="w-full h-full object-cover blur-sm md:blur-md opacity-40 transform scale-110">
+            <div class="absolute inset-0 bg-gradient-to-t from-[#0c0e14] via-[#0c0e14]/50 to-transparent"></div>
+            
+            <div class="absolute inset-0 flex items-center justify-center gap-6 p-6">
+                <div class="hidden md:block w-48 rounded-xl overflow-hidden shadow-2xl border border-white/10"><img src="${d.cover}" class="w-full h-full object-cover"></div>
+                <div class="flex flex-col items-center md:items-start text-center md:text-left max-w-xl">
+                    <span class="bg-[#00d639] text-black text-xs font-bold px-2 py-1 rounded mb-3 uppercase tracking-widest">Trending</span>
+                    <h2 class="text-3xl md:text-5xl font-extrabold text-white mb-3 drop-shadow-lg">${d.title}</h2>
+                    <p class="text-gray-300 text-sm mb-6 line-clamp-2 md:line-clamp-3">${Number(d.views).toLocaleString('es-ES')} visualizaciones · ${d.chapters} Episodios</p>
+                    <button onclick="loadDetail('${d.id}')" class="bg-gradient-to-r from-[#00d639] to-[#009e2a] text-black px-8 py-3 rounded-full font-bold shadow-[0_0_20px_rgba(0,214,57,0.4)] hover:scale-105 transition-transform flex items-center gap-2">
+                        <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"></path></svg> Ver Ahora
+                    </button>
+                </div>
+            </div>
+        </div>
+    `).join('');
+
+    // Crear Puntos (Dots)
+    dotsContainer.innerHTML = topDramas.map((_, i) => `
+        <button class="w-2 h-2 rounded-full transition-all duration-300 ${i === 0 ? 'bg-[#00d639] w-6' : 'bg-white/30 hover:bg-white/50'}" id="dot-${i}" onclick="changeSlide(${i})"></button>
+    `).join('');
+
+    // Auto-Slide
+    if(sliderInterval) clearInterval(sliderInterval);
+    let currentSlide = 0;
+    
+    window.changeSlide = function(index) {
+        document.getElementById(`slide-${currentSlide}`).classList.replace('opacity-100', 'opacity-0');
+        document.getElementById(`slide-${currentSlide}`).classList.replace('z-10', 'z-0');
+        document.getElementById(`dot-${currentSlide}`).classList.replace('bg-[#00d639]', 'bg-white/30');
+        document.getElementById(`dot-${currentSlide}`).classList.replace('w-6', 'w-2');
+        
+        currentSlide = index;
+        
+        document.getElementById(`slide-${currentSlide}`).classList.replace('opacity-0', 'opacity-100');
+        document.getElementById(`slide-${currentSlide}`).classList.replace('z-0', 'z-10');
+        document.getElementById(`dot-${currentSlide}`).classList.replace('bg-white/30', 'bg-[#00d639]');
+        document.getElementById(`dot-${currentSlide}`).classList.replace('w-2', 'w-6');
+    };
+
+    sliderInterval = setInterval(() => {
+        let next = (currentSlide + 1) % topDramas.length;
+        window.changeSlide(next);
+    }, 5000);
+}
+
+
 async function loadHome() {
     const lang = document.getElementById('select-lang').value;
     const path = `/api/v2/home?category_p=${currentCategory}&lang=${lang}`;
     
     showHome();
     const list = document.getElementById('drama-list');
+    document.getElementById('hero-slider-container').classList.add('hidden');
     
+    // Renderizar locales
+    renderContinueWatching();
+    renderFavorites();
+
     list.innerHTML = `
         <div class="col-span-full flex flex-col items-center justify-center py-40 opacity-80 fade-in">
             <div class="relative w-16 h-16 flex items-center justify-center mb-6">
@@ -78,22 +240,25 @@ async function loadHome() {
         </div>`;
 
     try {
-        const res = await fetch(API_BASE + path, { headers: getHeaders(path) });
+        const res = await fetch(_0xUrl + path, { headers: getHeaders(path) });
         const json = await res.json();
         
         if(!json.success || json.data.length === 0) {
             list.innerHTML = `
                 <div class="col-span-full flex flex-col items-center justify-center py-28 bg-[#171a21]/50 rounded-3xl border border-white/5 fade-in">
-                    <div class="w-20 h-20 bg-white/5 rounded-full flex items-center justify-center mb-5">
-                        <svg class="w-10 h-10 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z"></path></svg>
-                    </div>
+                    <div class="w-20 h-20 bg-white/5 rounded-full flex items-center justify-center mb-5"><svg class="w-10 h-10 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z"></path></svg></div>
                     <p class="text-gray-300 text-lg font-medium">No hay contenido en <b>${lang.toUpperCase()}</b></p>
                     <p class="text-sm mt-2 text-gray-500">Intenta cambiar el idioma o selecciona otro canal VIP.</p>
                 </div>`;
             return;
         }
 
-        list.innerHTML = json.data.map((d, index) => `
+        renderHeroSlider(json.data); // Iniciar Slider
+
+        // Quitamos los 5 primeros porque ya están en el slider (opcional)
+        const restDramas = json.data.slice(5);
+
+        list.innerHTML = restDramas.map((d, index) => `
             <div class="group cursor-pointer flex flex-col relative fade-in" style="animation-delay: ${index * 0.05}s" onclick="loadDetail('${d.id}')">
                 <div class="relative overflow-hidden rounded-xl bg-[#171a21] aspect-[3/4] shadow-lg shadow-black/50 group-hover:shadow-[0_0_20px_rgba(0,214,57,0.15)] group-hover:border-[#00d639]/50 border border-white/5 transition-all duration-300">
                     <img src="${d.cover}" loading="lazy" class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110 opacity-90 group-hover:opacity-100">
@@ -111,13 +276,13 @@ async function loadHome() {
                     <h3 class="text-[15px] font-semibold leading-tight line-clamp-2 text-gray-200 group-hover:text-[#00d639] transition-colors drop-shadow-sm">${d.title}</h3>
                     <p class="text-xs text-gray-500 mt-1.5 font-medium flex items-center gap-1.5">
                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
-                        ${Number(d.views).toLocaleString('es-ES')} visualizaciones
+                        ${Number(d.views).toLocaleString('es-ES')} vistas
                     </p>
                 </div>
             </div>
         `).join('');
     } catch (e) {
-        list.innerHTML = "<p class='col-span-full text-center py-20 text-red-400 bg-red-900/10 rounded-2xl border border-red-900/30'>Error de conexión. Verifica tu internet o las cabeceras CORS.</p>";
+        list.innerHTML = "<p class='col-span-full text-center py-20 text-red-400 bg-red-900/10 rounded-2xl border border-red-900/30'>Error de conexión.</p>";
     }
 }
 
@@ -126,11 +291,11 @@ async function loadDetail(id) {
     const path = `/api/v2/detail?category_p=${currentCategory}&id=${id}&lang=${lang}`;
 
     try {
-        const res = await fetch(API_BASE + path, { headers: getHeaders(path) });
+        const res = await fetch(_0xUrl + path, { headers: getHeaders(path) });
         const json = await res.json();
         const d = json.data;
         
-        currentDramaData = { id: d.id, title: d.title, chapters: d.chapters };
+        currentDramaData = { id: d.id, title: d.title, chapters: d.chapters, cover: d.cover };
 
         document.getElementById('home-screen').classList.add('hidden');
         document.getElementById('platform-section').classList.add('hidden');
@@ -139,6 +304,11 @@ async function loadDetail(id) {
         document.getElementById('detail-bg').innerHTML = `<img src="${d.cover}" class="w-full h-full object-cover blur-[60px] scale-125 saturate-150 opacity-60">`;
 
         const activePlatform = platforms.find(p => p.id === currentCategory);
+        
+        // Revisar si ya es favorito
+        const isFav = getSavedData('drama_favs').some(f => f.id === id);
+        const favIcon = isFav ? `<path fill="currentColor" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"></path>` 
+                              : `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"></path>`;
 
         document.getElementById('drama-info').innerHTML = `
             <div class="w-40 sm:w-56 md:w-72 flex-shrink-0 relative group">
@@ -151,10 +321,9 @@ async function loadDetail(id) {
                 <div class="flex flex-wrap items-center gap-3 mb-6">
                     <span class="bg-gradient-to-r from-[#00d639] to-[#00a32a] text-black px-3 py-1 rounded text-xs font-bold uppercase tracking-wider shadow-lg">${activePlatform.name} VIP</span>
                     <span class="bg-black/40 backdrop-blur-md border border-white/10 text-white px-3 py-1 rounded text-xs font-semibold uppercase tracking-wider shadow-sm">${d.status}</span>
-                    <span class="text-gray-300 text-sm font-medium flex items-center gap-1.5 bg-black/40 backdrop-blur-md border border-white/5 px-3 py-1 rounded">
-                        <svg class="w-4 h-4 text-[#00d639]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z"></path></svg>
-                        ${d.total_episodes} Capítulos
-                    </span>
+                    <button onclick="toggleFavorite('${d.id}', \`${d.title.replace(/`/g, "'")}\`, '${d.cover}')" class="bg-white/10 hover:bg-white/20 text-[#00d639] px-3 py-1 rounded text-xs font-semibold flex items-center gap-1 transition">
+                        <svg id="fav-btn-icon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">${favIcon}</svg> Lista
+                    </button>
                 </div>
                 <p class="text-gray-300 text-sm md:text-base leading-relaxed mb-6 max-w-4xl line-clamp-4 hover:line-clamp-none transition-all cursor-pointer bg-black/20 p-4 rounded-xl border border-white/5 backdrop-blur-sm">${d.synopsis}</p>
                 ${d.genres ? `
@@ -197,11 +366,13 @@ async function playVideo(dramaId, chapterId, title) {
         currentChapterIndex = currentDramaData.chapters.findIndex(c => String(c.id) === String(chapterId));
         if (currentChapterIndex !== -1) {
             episodeNumber = currentDramaData.chapters[currentChapterIndex].index;
+            // NUEVO: Guardar en Continuar Viendo
+            saveContinueWatching(dramaId, currentDramaData.title, currentDramaData.cover, episodeNumber);
         }
     }
 
     try {
-        const res = await fetch(API_BASE + path, { headers: getHeaders(path) });
+        const res = await fetch(_0xUrl + path, { headers: getHeaders(path) });
         const json = await res.json();
         const videoUrl = json.data.streams[0].url;
 
@@ -236,11 +407,7 @@ async function playVideo(dramaId, chapterId, title) {
                         (t.lang && t.lang.toLowerCase().startsWith('es')) || 
                         (t.name && (t.name.toLowerCase().includes('spa') || t.name.toLowerCase().includes('espa')))
                     );
-                    if (spaIndex !== -1) {
-                        hlsInstance.subtitleTrack = spaIndex;
-                    } else {
-                        hlsInstance.subtitleTrack = 0; 
-                    }
+                    hlsInstance.subtitleTrack = spaIndex !== -1 ? spaIndex : 0; 
                 }
             });
 
@@ -292,7 +459,6 @@ function playPrevEpisode() {
     }
 }
 
-// SCROLL Y SWIPE 
 let touchStartY = 0;
 let isNavigating = false;
 const playerScreen = document.getElementById('player-screen');
