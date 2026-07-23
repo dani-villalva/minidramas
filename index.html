@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Plataforma Multi-Drama API - Premium VOD</title>
+    
+    <!-- Librerías Externas -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+    
+    <!-- Tu archivo CSS -->
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body class="text-gray-200 antialiased min-h-screen flex flex-col overflow-x-hidden">
+
+    <!-- Navegación Superior -->
+    <nav class="px-4 py-3 bg-[#0c0e14]/85 backdrop-blur-xl sticky top-0 z-50 border-b border-white/5 shadow-[0_4px_30px_rgba(0,0,0,0.5)]">
+        <div class="max-w-7xl mx-auto flex items-center justify-between">
+            <h1 class="text-2xl font-extrabold cursor-pointer flex items-center gap-2.5 tracking-tight text-white hover:text-[#00d639] transition-colors" onclick="location.reload()">
+                <div class="w-8 h-8 bg-gradient-to-br from-[#00d639] to-[#009e2a] rounded-lg flex items-center justify-center text-black shadow-[0_0_15px_rgba(0,214,57,0.3)]">
+                    <svg class="w-4 h-4 ml-0.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"></path></svg>
+                </div>
+                iQIYI <span class="font-light text-gray-500 text-lg tracking-widest hidden sm:inline">DRAMA</span>
+            </h1>
+            
+            <select id="select-lang" class="bg-[#171a21] text-sm py-2 px-4 rounded-full border border-white/10 outline-none text-gray-300 focus:border-[#00d639] hover:bg-[#1d212a] transition-all cursor-pointer font-medium shadow-inner appearance-none pr-8 relative" onchange="loadHome()" style="background-image: url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%239ca3af%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E'); background-repeat: no-repeat; background-position: right .7rem top 50%; background-size: .65rem auto;">
+                <option value="es">ES - Español</option>
+                <option value="en">EN - English</option>
+                <option value="id">ID - Bahasa</option>
+            </select>
+        </div>
+    </nav>
+
+    <div id="app" class="max-w-7xl mx-auto p-4 md:px-8 md:py-6 w-full flex-1">
+
+        <!-- SELECTOR DE PLATAFORMAS -->
+        <div id="platform-section" class="mb-10">
+            <div class="flex items-center justify-between mb-5">
+                <h2 class="text-lg md:text-xl font-bold text-white tracking-wide">Canales VIP</h2>
+            </div>
+            <div id="platform-list" class="flex gap-4 md:gap-5 overflow-x-auto hide-scrollbar pb-6 pt-2 px-2 -mx-2"></div>
+        </div>
+
+        <!-- Pantalla Inicio -->
+        <section id="home-screen" class="pb-10">
+            <div class="flex items-center gap-3 mb-6">
+                <div class="w-1.5 h-6 bg-gradient-to-b from-[#00d639] to-[#009e2a] rounded-full shadow-[0_0_10px_#00d639]"></div>
+                <h2 id="current-platform-title" class="text-2xl font-bold text-white capitalize tracking-tight flex items-center gap-2">
+                    Cargando...
+                </h2>
+            </div>
+            <div id="drama-list" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-x-4 gap-y-8"></div>
+        </section>
+
+        <!-- Pantalla Detalle -->
+        <section id="detail-screen" class="hidden relative pb-16 min-h-[80vh]">
+            <div id="detail-bg" class="absolute top-0 left-0 w-full h-[65vh] z-0 banner-mask opacity-30 pointer-events-none"></div>
+            
+            <div class="relative z-10">
+                <button onclick="showHome()" class="mb-8 flex items-center text-gray-400 hover:text-white bg-white/5 hover:bg-white/10 backdrop-blur-md px-5 py-2.5 rounded-full transition-all text-sm font-medium border border-white/5 w-fit group">
+                    <svg class="w-5 h-5 mr-1.5 transform group-hover:-translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
+                    Volver a inicio
+                </button>
+                
+                <div id="drama-info" class="flex flex-col md:flex-row gap-8 lg:gap-12 fade-in"></div>
+                
+                <div class="mt-16 fade-in" style="animation-delay: 0.1s;">
+                    <div class="flex items-center justify-between mb-8 border-b border-white/5 pb-4">
+                        <h3 class="text-2xl font-bold flex items-center gap-3 text-white tracking-tight">Episodios</h3>
+                    </div>
+                    <div id="chapter-list" class="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-2.5 md:gap-3"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Pantalla Reproductor -->
+        <section id="player-screen" class="hidden fixed inset-0 bg-black z-[9999] w-full h-[100dvh] flex flex-col overflow-hidden">
+            <div class="absolute top-0 left-0 w-full p-4 flex justify-between items-start z-50 bg-gradient-to-b from-black/80 via-black/40 to-transparent pointer-events-none">
+                
+                <div class="flex items-center gap-3 pointer-events-auto">
+                    <button onclick="closePlayer()" class="text-gray-200 hover:text-white w-10 h-10 flex items-center justify-center rounded-full bg-black/50 hover:bg-black/70 backdrop-blur-md border border-white/10 transition-colors shadow-lg" title="Cerrar Video">
+                        <svg class="w-6 h-6 pr-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M15 19l-7-7 7-7"></path></svg>
+                    </button>
+                    <h2 id="video-title" class="font-bold text-base md:text-lg text-white drop-shadow-md">...</h2>
+                </div>
+                
+                <div class="flex items-center gap-2 pointer-events-auto">
+                    <button onclick="playPrevEpisode()" class="text-gray-200 hover:text-[#00d639] w-10 h-10 flex items-center justify-center rounded-full bg-black/50 hover:bg-black/70 transition-colors backdrop-blur-md border border-white/10 shadow-lg" title="Episodio Anterior">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 15l7-7 7 7"></path></svg>
+                    </button>
+                    <button onclick="playNextEpisode()" class="text-gray-200 hover:text-[#00d639] w-10 h-10 flex items-center justify-center rounded-full bg-black/50 hover:bg-black/70 transition-colors backdrop-blur-md border border-white/10 shadow-lg" title="Siguiente Episodio">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"></path></svg>
+                    </button>
+                </div>
+            </div>
+
+            <div class="w-full h-full flex items-center justify-center bg-black relative z-10">
+                <video id="main-video" controls playsinline crossorigin="anonymous" class="w-full h-full max-h-[100dvh] object-contain outline-none"></video>
+            </div>
+        </section>
+    </div>
+
+    <!-- Tu archivo JS principal va al final -->
+    <script src="js/app.js"></script>
+</body>
+</html>
