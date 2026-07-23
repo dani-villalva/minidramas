@@ -1,5 +1,4 @@
-// --- 1. OFUSCACIÓN DE API ---
-// Estas cadenas codificadas ocultan la URL y la llave. No es infalible, pero detiene scrapers básicos.
+// --- OFUSCACIÓN DE API ---
 const _0xUrl = atob("aHR0cHM6Ly9hcGkucXVpY2twbGF5Lm15Lmlk");
 const _0xKey = ["2c6afa9a9", "53a3ff9fc", "4343a17d8", "e72779ad5", "25188fc6c", "59e89c330", "f990bf3224"].join("");
 
@@ -7,6 +6,7 @@ let hlsInstance = null;
 let currentDramaData = null; 
 let currentChapterIndex = -1; 
 let sliderInterval = null;
+let controlsTimeout = null;
 
 // PLATAFORMAS 
 const platforms = [
@@ -32,14 +32,9 @@ function getHeaders(path) {
 }
 
 // --- LOCAL STORAGE LOGIC ---
-function getSavedData(key) {
-    return JSON.parse(localStorage.getItem(key)) || [];
-}
-function setSavedData(key, data) {
-    localStorage.setItem(key, JSON.stringify(data));
-}
+function getSavedData(key) { return JSON.parse(localStorage.getItem(key)) || []; }
+function setSavedData(key, data) { localStorage.setItem(key, JSON.stringify(data)); }
 
-// Toggle Favoritos
 function toggleFavorite(id, title, cover) {
     let favs = getSavedData('drama_favs');
     const index = favs.findIndex(f => f.id === id);
@@ -53,7 +48,6 @@ function toggleFavorite(id, title, cover) {
     setSavedData('drama_favs', favs);
     renderFavorites();
     
-    // Actualizar botón si estamos en detalles
     const btn = document.getElementById('fav-btn-icon');
     if(btn) {
         btn.innerHTML = index > -1 ? `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"></path>` 
@@ -61,13 +55,12 @@ function toggleFavorite(id, title, cover) {
     }
 }
 
-// Guardar progreso Continuar Viendo
 function saveContinueWatching(id, title, cover, chapterId) {
     let cw = getSavedData('drama_cw');
     const index = cw.findIndex(c => c.id === id);
     if (index > -1) cw.splice(index, 1);
     cw.unshift({ id, title, cover, chapterId, category: currentCategory });
-    if(cw.length > 10) cw.pop(); // Mantener solo los últimos 10
+    if(cw.length > 10) cw.pop();
     setSavedData('drama_cw', cw);
     renderContinueWatching();
 }
@@ -77,10 +70,7 @@ function renderContinueWatching() {
     const sec = document.getElementById('continue-watching-section');
     const list = document.getElementById('continue-watching-list');
     
-    if (cw.length === 0) {
-        sec.classList.add('hidden');
-        return;
-    }
+    if (cw.length === 0) { sec.classList.add('hidden'); return; }
     
     sec.classList.remove('hidden');
     list.innerHTML = cw.map(d => `
@@ -104,10 +94,7 @@ function renderFavorites() {
     const sec = document.getElementById('favorites-section');
     const list = document.getElementById('favorites-list');
     
-    if (favs.length === 0) {
-        sec.classList.add('hidden');
-        return;
-    }
+    if (favs.length === 0) { sec.classList.add('hidden'); return; }
     
     sec.classList.remove('hidden');
     list.innerHTML = favs.map(d => `
@@ -149,30 +136,25 @@ function renderPlatforms() {
 
 function selectPlatform(id) {
     currentCategory = id;
+    document.getElementById('search-input').value = ''; // Limpiar buscador
     renderPlatforms();
     loadHome();
 }
 
-// SLIDER HERO
 function renderHeroSlider(dramas) {
     const container = document.getElementById('hero-slider-container');
     const slider = document.getElementById('hero-slider');
     const dotsContainer = document.getElementById('slider-dots');
     
-    if(!dramas || dramas.length === 0) {
-        container.classList.add('hidden');
-        return;
-    }
+    if(!dramas || dramas.length === 0) { container.classList.add('hidden'); return; }
     
     container.classList.remove('hidden');
-    const topDramas = dramas.slice(0, 5); // 5 primeros para el slider
+    const topDramas = dramas.slice(0, 5); 
     
-    // Crear Slides
     slider.innerHTML = topDramas.map((d, i) => `
         <div class="absolute inset-0 transition-opacity duration-1000 ${i === 0 ? 'opacity-100 z-10' : 'opacity-0 z-0'}" id="slide-${i}">
             <img src="${d.cover}" class="w-full h-full object-cover blur-sm md:blur-md opacity-40 transform scale-110">
             <div class="absolute inset-0 bg-gradient-to-t from-[#0c0e14] via-[#0c0e14]/50 to-transparent"></div>
-            
             <div class="absolute inset-0 flex items-center justify-center gap-6 p-6">
                 <div class="hidden md:block w-48 rounded-xl overflow-hidden shadow-2xl border border-white/10"><img src="${d.cover}" class="w-full h-full object-cover"></div>
                 <div class="flex flex-col items-center md:items-start text-center md:text-left max-w-xl">
@@ -187,12 +169,8 @@ function renderHeroSlider(dramas) {
         </div>
     `).join('');
 
-    // Crear Puntos (Dots)
-    dotsContainer.innerHTML = topDramas.map((_, i) => `
-        <button class="w-2 h-2 rounded-full transition-all duration-300 ${i === 0 ? 'bg-[#00d639] w-6' : 'bg-white/30 hover:bg-white/50'}" id="dot-${i}" onclick="changeSlide(${i})"></button>
-    `).join('');
+    dotsContainer.innerHTML = topDramas.map((_, i) => `<button class="w-2 h-2 rounded-full transition-all duration-300 ${i === 0 ? 'bg-[#00d639] w-6' : 'bg-white/30 hover:bg-white/50'}" id="dot-${i}" onclick="changeSlide(${i})"></button>`).join('');
 
-    // Auto-Slide
     if(sliderInterval) clearInterval(sliderInterval);
     let currentSlide = 0;
     
@@ -201,22 +179,18 @@ function renderHeroSlider(dramas) {
         document.getElementById(`slide-${currentSlide}`).classList.replace('z-10', 'z-0');
         document.getElementById(`dot-${currentSlide}`).classList.replace('bg-[#00d639]', 'bg-white/30');
         document.getElementById(`dot-${currentSlide}`).classList.replace('w-6', 'w-2');
-        
         currentSlide = index;
-        
         document.getElementById(`slide-${currentSlide}`).classList.replace('opacity-0', 'opacity-100');
         document.getElementById(`slide-${currentSlide}`).classList.replace('z-0', 'z-10');
         document.getElementById(`dot-${currentSlide}`).classList.replace('bg-white/30', 'bg-[#00d639]');
         document.getElementById(`dot-${currentSlide}`).classList.replace('w-2', 'w-6');
     };
 
-    sliderInterval = setInterval(() => {
-        let next = (currentSlide + 1) % topDramas.length;
-        window.changeSlide(next);
-    }, 5000);
+    sliderInterval = setInterval(() => { window.changeSlide((currentSlide + 1) % topDramas.length); }, 5000);
 }
 
 
+// --- 1. SKELETON LOADERS AÑADIDOS ---
 async function loadHome() {
     const lang = document.getElementById('select-lang').value;
     const path = `/api/v2/home?category_p=${currentCategory}&lang=${lang}`;
@@ -224,20 +198,19 @@ async function loadHome() {
     showHome();
     const list = document.getElementById('drama-list');
     document.getElementById('hero-slider-container').classList.add('hidden');
+    document.getElementById('search-container').classList.add('hidden');
     
-    // Renderizar locales
     renderContinueWatching();
     renderFavorites();
 
-    list.innerHTML = `
-        <div class="col-span-full flex flex-col items-center justify-center py-40 opacity-80 fade-in">
-            <div class="relative w-16 h-16 flex items-center justify-center mb-6">
-                <div class="absolute inset-0 border-4 border-[#00d639]/30 rounded-full"></div>
-                <div class="absolute inset-0 border-4 border-[#00d639] border-t-transparent rounded-full animate-spin"></div>
-                <div class="w-6 h-6 bg-[#00d639] rounded-sm animate-pulse"></div>
-            </div>
-            <p class="text-gray-400 font-medium tracking-widest text-sm uppercase">Cargando Catálogo</p>
-        </div>`;
+    // Skeletons de carga (12 tarjetas vacías animadas)
+    list.innerHTML = Array(12).fill(0).map(() => `
+        <div class="flex flex-col animate-pulse">
+            <div class="bg-[#171a21] aspect-[3/4] rounded-xl w-full mb-3 border border-white/5"></div>
+            <div class="h-4 bg-[#171a21] rounded w-3/4 mb-2"></div>
+            <div class="h-3 bg-[#171a21] rounded w-1/2"></div>
+        </div>
+    `).join('');
 
     try {
         const res = await fetch(_0xUrl + path, { headers: getHeaders(path) });
@@ -248,18 +221,18 @@ async function loadHome() {
                 <div class="col-span-full flex flex-col items-center justify-center py-28 bg-[#171a21]/50 rounded-3xl border border-white/5 fade-in">
                     <div class="w-20 h-20 bg-white/5 rounded-full flex items-center justify-center mb-5"><svg class="w-10 h-10 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z"></path></svg></div>
                     <p class="text-gray-300 text-lg font-medium">No hay contenido en <b>${lang.toUpperCase()}</b></p>
-                    <p class="text-sm mt-2 text-gray-500">Intenta cambiar el idioma o selecciona otro canal VIP.</p>
                 </div>`;
             return;
         }
 
-        renderHeroSlider(json.data); // Iniciar Slider
+        renderHeroSlider(json.data); 
+        document.getElementById('search-container').classList.remove('hidden');
 
-        // Quitamos los 5 primeros porque ya están en el slider (opcional)
         const restDramas = json.data.slice(5);
 
+        // --- 2. BUSCADOR INTELIGENTE: Añadimos 'drama-card' y 'data-title' ---
         list.innerHTML = restDramas.map((d, index) => `
-            <div class="group cursor-pointer flex flex-col relative fade-in" style="animation-delay: ${index * 0.05}s" onclick="loadDetail('${d.id}')">
+            <div class="drama-card group cursor-pointer flex flex-col relative fade-in" data-title="${d.title.replace(/"/g, '&quot;').toLowerCase()}" style="animation-delay: ${(index % 10) * 0.05}s" onclick="loadDetail('${d.id}')">
                 <div class="relative overflow-hidden rounded-xl bg-[#171a21] aspect-[3/4] shadow-lg shadow-black/50 group-hover:shadow-[0_0_20px_rgba(0,214,57,0.15)] group-hover:border-[#00d639]/50 border border-white/5 transition-all duration-300">
                     <img src="${d.cover}" loading="lazy" class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110 opacity-90 group-hover:opacity-100">
                     <div class="absolute inset-0 bg-gradient-to-t from-[#0c0e14] via-[#0c0e14]/20 to-transparent opacity-80 group-hover:opacity-90 transition-opacity"></div>
@@ -286,6 +259,16 @@ async function loadHome() {
     }
 }
 
+// Filtro Buscador
+document.getElementById('search-input').addEventListener('input', function(e) {
+    const term = e.target.value.toLowerCase();
+    const cards = document.querySelectorAll('.drama-card');
+    cards.forEach(card => {
+        const title = card.getAttribute('data-title');
+        card.style.display = title.includes(term) ? 'flex' : 'none';
+    });
+});
+
 async function loadDetail(id) {
     const lang = document.getElementById('select-lang').value;
     const path = `/api/v2/detail?category_p=${currentCategory}&id=${id}&lang=${lang}`;
@@ -304,8 +287,6 @@ async function loadDetail(id) {
         document.getElementById('detail-bg').innerHTML = `<img src="${d.cover}" class="w-full h-full object-cover blur-[60px] scale-125 saturate-150 opacity-60">`;
 
         const activePlatform = platforms.find(p => p.id === currentCategory);
-        
-        // Revisar si ya es favorito
         const isFav = getSavedData('drama_favs').some(f => f.id === id);
         const favIcon = isFav ? `<path fill="currentColor" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"></path>` 
                               : `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"></path>`;
@@ -357,6 +338,75 @@ function forceNativeSpanishSubs(videoElement) {
     }
 }
 
+// --- 3. CONTROLES PERSONALIZADOS DE VIDEO ---
+
+const video = document.getElementById('main-video');
+const playBtn = document.getElementById('play-pause-btn');
+const playIcon = document.getElementById('play-icon');
+const progressContainer = document.getElementById('progress-container');
+const progressFilled = document.getElementById('progress-filled');
+const currentTimeEl = document.getElementById('current-time');
+const totalTimeEl = document.getElementById('total-time');
+const headerControls = document.getElementById('player-header');
+const bottomControls = document.getElementById('player-controls');
+
+function formatTime(seconds) {
+    if (isNaN(seconds)) return "00:00";
+    const m = Math.floor(seconds / 60).toString().padStart(2, '0');
+    const s = Math.floor(seconds % 60).toString().padStart(2, '0');
+    return `${m}:${s}`;
+}
+
+// Ocultar controles automáticamente si no hay interacción
+function resetControlsTimeout() {
+    headerControls.style.opacity = '1';
+    bottomControls.style.opacity = '1';
+    if(controlsTimeout) clearTimeout(controlsTimeout);
+    controlsTimeout = setTimeout(() => {
+        if(!video.paused) {
+            headerControls.style.opacity = '0';
+            bottomControls.style.opacity = '0';
+        }
+    }, 3000);
+}
+
+// Play / Pause event
+playBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    video.paused ? video.play() : video.pause();
+});
+
+video.addEventListener('play', () => {
+    playIcon.innerHTML = `<path d="M6 4h4v16H6zm8 0h4v16h-4z"></path>`; // Pause icon
+    resetControlsTimeout();
+});
+
+video.addEventListener('pause', () => {
+    playIcon.innerHTML = `<path d="M8 5v14l11-7z"></path>`; // Play icon
+    resetControlsTimeout();
+});
+
+video.addEventListener('timeupdate', () => {
+    const percent = (video.currentTime / video.duration) * 100 || 0;
+    progressFilled.style.width = `${percent}%`;
+    currentTimeEl.innerText = formatTime(video.currentTime);
+    totalTimeEl.innerText = formatTime(video.duration);
+});
+
+// Click para saltar tiempo en la barra
+progressContainer.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const rect = progressContainer.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const percent = x / rect.width;
+    video.currentTime = percent * video.duration;
+    resetControlsTimeout();
+});
+
+// Mostrar/Ocultar controles al mover el ratón (PC)
+document.getElementById('player-screen').addEventListener('mousemove', resetControlsTimeout);
+
+
 async function playVideo(dramaId, chapterId, title) {
     const lang = document.getElementById('select-lang').value;
     const path = `/api/v2/video?category_p=${currentCategory}&id=${dramaId}&chapterId=${chapterId}&lang=${lang}`;
@@ -366,7 +416,6 @@ async function playVideo(dramaId, chapterId, title) {
         currentChapterIndex = currentDramaData.chapters.findIndex(c => String(c.id) === String(chapterId));
         if (currentChapterIndex !== -1) {
             episodeNumber = currentDramaData.chapters[currentChapterIndex].index;
-            // NUEVO: Guardar en Continuar Viendo
             saveContinueWatching(dramaId, currentDramaData.title, currentDramaData.cover, episodeNumber);
         }
     }
@@ -381,9 +430,14 @@ async function playVideo(dramaId, chapterId, title) {
         document.body.style.overscrollBehavior = 'none';
 
         document.getElementById('video-title').innerHTML = `<span class="text-[#00d639] font-bold tracking-wider uppercase">Episodio ${episodeNumber}</span>`;
-
-        const video = document.getElementById('main-video');
         
+        // Reset player UI
+        progressFilled.style.width = '0%';
+        currentTimeEl.innerText = '00:00';
+        totalTimeEl.innerText = '00:00';
+        playIcon.innerHTML = `<path d="M8 5v14l11-7z"></path>`;
+        resetControlsTimeout();
+
         if (hlsInstance) {
             hlsInstance.destroy();
             hlsInstance = null;
@@ -399,7 +453,6 @@ async function playVideo(dramaId, chapterId, title) {
 
         if (Hls.isSupported() && videoUrl.includes('m3u8')) {
             hlsInstance = new Hls({ renderTextTracksNatively: true }); 
-            
             hlsInstance.on(Hls.Events.SUBTITLE_TRACKS_UPDATED, function (event, data) {
                 let tracks = data.subtitleTracks;
                 if (tracks && tracks.length > 0) {
@@ -410,7 +463,6 @@ async function playVideo(dramaId, chapterId, title) {
                     hlsInstance.subtitleTrack = spaIndex !== -1 ? spaIndex : 0; 
                 }
             });
-
             hlsInstance.loadSource(videoUrl);
             hlsInstance.attachMedia(video);
             video.addEventListener('loadedmetadata', () => forceNativeSpanishSubs(video));
@@ -418,79 +470,94 @@ async function playVideo(dramaId, chapterId, title) {
             video.src = videoUrl;
             video.addEventListener('loadedmetadata', () => forceNativeSpanishSubs(video));
         }
-        video.play().catch(e => console.log("Auto-play requiere interacción previa."));
-    } catch (e) { alert("Error al obtener el enlace del video."); }
+        video.play().catch(e => console.log("Auto-play requirió interacción"));
+    } catch (e) { alert("Error al cargar video."); }
 }
 
-function showToast(msg) {
-    const existing = document.getElementById('toast-msg');
-    if (existing) existing.remove();
-    
-    const toast = document.createElement('div');
-    toast.id = 'toast-msg';
-    toast.className = 'fixed top-24 left-1/2 transform -translate-x-1/2 bg-gradient-to-r from-[#00d639] to-[#009e2a] text-black px-6 py-3 rounded-full font-bold text-sm z-[200] shadow-[0_10px_30px_rgba(0,214,57,0.4)] transition-all duration-300 flex items-center gap-2 pointer-events-none fade-in';
-    toast.innerHTML = `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg> ${msg}`;
-    document.body.appendChild(toast);
-    
-    setTimeout(() => { 
-        toast.style.opacity = '0'; 
-        toast.style.transform = 'translate(-50%, -10px)';
-        setTimeout(() => toast.remove(), 300); 
-    }, 2500);
-}
-
-function playNextEpisode() {
-    if (!currentDramaData || currentChapterIndex === -1) return;
-    if (currentChapterIndex < currentDramaData.chapters.length - 1) {
-        const next = currentDramaData.chapters[currentChapterIndex + 1];
-        playVideo(currentDramaData.id, next.id, next.title);
-    } else {
-        showToast("Has llegado al último episodio disponible.");
-    }
-}
-
-function playPrevEpisode() {
-    if (!currentDramaData || currentChapterIndex === -1) return;
-    if (currentChapterIndex > 0) {
-        const prev = currentDramaData.chapters[currentChapterIndex - 1];
-        playVideo(currentDramaData.id, prev.id, prev.title);
-    } else {
-        showToast("Este es el primer episodio.");
-    }
+// DOBLE TOQUE Y SWIPE (Integrado)
+function showSeekToast(msg) {
+    const toast = document.getElementById('seek-toast');
+    const txt = document.getElementById('seek-toast-text');
+    txt.innerText = msg;
+    toast.style.opacity = '1';
+    setTimeout(() => toast.style.opacity = '0', 800);
 }
 
 let touchStartY = 0;
-let isNavigating = false;
-const playerScreen = document.getElementById('player-screen');
-
-playerScreen.addEventListener('wheel', (e) => {
-    if (isNavigating || playerScreen.classList.contains('hidden')) return;
-    if (Math.abs(e.deltaY) > 40) {
-        if (e.deltaY > 0) playNextEpisode(); 
-        else playPrevEpisode();             
-        isNavigating = true;
-        setTimeout(() => isNavigating = false, 1500); 
-    }
-}, { passive: true });
+let lastTouchTime = 0;
 
 playerScreen.addEventListener('touchstart', e => {
     touchStartY = e.changedTouches[0].screenY;
 }, { passive: true });
 
 playerScreen.addEventListener('touchend', e => {
-    if (isNavigating || playerScreen.classList.contains('hidden')) return;
+    if (playerScreen.classList.contains('hidden')) return;
+    
+    // Ignorar si se tocó sobre los controles inferiores (para no interferir con la barra)
+    if(e.target.closest('#player-controls') || e.target.closest('#player-header')) return;
+
     const diff = touchStartY - e.changedTouches[0].screenY;
     
     if (diff > 70) { 
         playNextEpisode();
-        isNavigating = true;
-        setTimeout(() => isNavigating = false, 1200);
     } else if (diff < -70) { 
         playPrevEpisode();
-        isNavigating = true;
-        setTimeout(() => isNavigating = false, 1200);
+    } else if (Math.abs(diff) < 20) { 
+        // Es un TAP. Comprobamos doble toque
+        const now = Date.now();
+        if(now - lastTouchTime < 300) {
+            // DOBLE TOQUE (+/- 10s)
+            const x = e.changedTouches[0].clientX;
+            const w = window.innerWidth;
+            if(x > w / 2) {
+                video.currentTime += 10;
+                showSeekToast("⏩ +10s");
+            } else {
+                video.currentTime -= 10;
+                showSeekToast("⏪ -10s");
+            }
+        } else {
+            // TOQUE SIMPLE (Mostrar controles o Pausar)
+            resetControlsTimeout();
+        }
+        lastTouchTime = now;
     }
 }, { passive: true });
+
+// Scroll de Ratón (PC)
+playerScreen.addEventListener('wheel', (e) => {
+    if (playerScreen.classList.contains('hidden')) return;
+    if (Math.abs(e.deltaY) > 40) {
+        if (e.deltaY > 0) playNextEpisode(); 
+        else playPrevEpisode();             
+    }
+}, { passive: true });
+
+
+function showToast(msg) {
+    const existing = document.getElementById('toast-msg');
+    if (existing) existing.remove();
+    const toast = document.createElement('div');
+    toast.id = 'toast-msg';
+    toast.className = 'fixed top-24 left-1/2 transform -translate-x-1/2 bg-gradient-to-r from-[#00d639] to-[#009e2a] text-black px-6 py-3 rounded-full font-bold text-sm z-[200] shadow-[0_10px_30px_rgba(0,214,57,0.4)] transition-all duration-300 flex items-center gap-2 pointer-events-none fade-in';
+    toast.innerHTML = `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg> ${msg}`;
+    document.body.appendChild(toast);
+    setTimeout(() => { toast.style.opacity = '0'; toast.style.transform = 'translate(-50%, -10px)'; setTimeout(() => toast.remove(), 300); }, 2500);
+}
+
+function playNextEpisode() {
+    if (!currentDramaData || currentChapterIndex === -1) return;
+    if (currentChapterIndex < currentDramaData.chapters.length - 1) {
+        playVideo(currentDramaData.id, currentDramaData.chapters[currentChapterIndex + 1].id, null);
+    } else showToast("Has llegado al último episodio.");
+}
+
+function playPrevEpisode() {
+    if (!currentDramaData || currentChapterIndex === -1) return;
+    if (currentChapterIndex > 0) {
+        playVideo(currentDramaData.id, currentDramaData.chapters[currentChapterIndex - 1].id, null);
+    } else showToast("Este es el primer episodio.");
+}
 
 function showHome() {
     document.getElementById('platform-section').classList.remove('hidden');
@@ -503,16 +570,11 @@ function closePlayer() {
     document.getElementById('player-screen').classList.add('hidden');
     document.body.style.overflow = 'auto'; 
     document.body.style.overscrollBehavior = 'auto';
-    
-    const video = document.getElementById('main-video');
     video.pause();
     video.removeAttribute('src'); 
     video.load();
-
-    if (hlsInstance) {
-        hlsInstance.destroy();
-        hlsInstance = null;
-    }
+    if (hlsInstance) { hlsInstance.destroy(); hlsInstance = null; }
+    if (controlsTimeout) clearTimeout(controlsTimeout);
 }
 
 // INICIAR
