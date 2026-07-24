@@ -1,5 +1,4 @@
-// --- 1. OFUSCACIÓN DE API ---
-// Estas cadenas codificadas ocultan la URL y la llave. No es infalible, pero detiene scrapers básicos.
+
 const _0xUrl = atob("aHR0cHM6Ly9hcGkucXVpY2twbGF5Lm15Lmlk");
 const _0xKey = ["2c6afa9a9", "53a3ff9fc", "4343a17d8", "e72779ad5", "25188fc6c", "59e89c330", "f990bf3224"].join("");
 
